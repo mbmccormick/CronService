@@ -90,6 +90,9 @@ namespace BackgroundWorker
 
             // log information to database
             this.LogInformation(result, content);
+
+            // clean up the database
+            this.CleanDatabase(Schedule);
         }
 
         private void LogInformation(HttpStatusCode result, string content)
@@ -110,6 +113,27 @@ namespace BackgroundWorker
 
             // insert information to database
             db.Informations.InsertOnSubmit(log);
+            db.SubmitChanges();
+
+            // close connection
+            db.Dispose();
+        }
+
+        private void CleanDatabase(Schedule schedule)
+        {
+            // connect to the database
+            DatabaseDataContext db = new DatabaseDataContext();
+
+            // delete last 50 records for this schedule from the database
+            List<Information> toDelete = new List<Information>();
+            foreach (Information i in db.Informations.Where(z => z.ScheduleID == schedule.ID &&
+                                                                 db.Informations.Where(y => y.ScheduleID == schedule.ID).OrderByDescending(y => y.CreatedDate).Take(100).Contains(z) == false))
+            {
+                toDelete.Add(i);
+            }
+
+            // delete information from database
+            db.Informations.DeleteAllOnSubmit(toDelete);
             db.SubmitChanges();
 
             // close connection
