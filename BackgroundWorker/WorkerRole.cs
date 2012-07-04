@@ -86,6 +86,8 @@ namespace BackgroundWorker
             {
                 if (ex.Response is HttpWebResponse)
                     result = ((HttpWebResponse)ex.Response).StatusCode;
+                else
+                    result = HttpStatusCode.RequestTimeout;
             }
 
             // log information to database
