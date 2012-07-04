@@ -44,10 +44,8 @@ namespace BackgroundWorker
                 // close connection
                 db.Dispose();
 
-                if (Debugger.IsAttached == true)
-                    Thread.Sleep(10000); // sleep for ten seconds
-                else
-                    Thread.Sleep(60000); // sleep for one minute
+                // sleep for fifteen seconds
+                Thread.Sleep(15000);
             }
         }
 
