@@ -19,6 +19,7 @@ namespace BackgroundWorker
         {
             while (true)
             {
+                // connect to the database
                 DatabaseDataContext db = new DatabaseDataContext();
 
                 // fetch all scheduled jobs that are overdue and enabled
@@ -26,7 +27,7 @@ namespace BackgroundWorker
                                                                z.IsEnabled == true))
                 {
                     // execute job
-                    Job job = new Job(s.Endpoint);
+                    Job job = new Job(s);
 
                     Thread jobThread = new Thread(new ThreadStart(job.Execute));
                     jobThread.Start();
@@ -40,6 +41,7 @@ namespace BackgroundWorker
                     db.SubmitChanges();
                 }
 
+                // close connection
                 db.Dispose();
 
                 if (Debugger.IsAttached == true)
@@ -59,19 +61,59 @@ namespace BackgroundWorker
 
     public class Job
     {
-        public string Endpoint;
+        public Schedule Schedule;
 
-        public Job(string endpoint)
+        public Job(Schedule schedule)
         {
-            Endpoint = endpoint;
+            Schedule = schedule;
         }
 
         public void Execute()
         {
-            WebClient client = new WebClient();
-            client.DownloadData(Endpoint);
+            HttpStatusCode result = HttpStatusCode.OK;
+            string content = "";
 
-            client.Dispose();
+            try
+            {
+                // request the http endpoint
+                WebClient client = new WebClient();
+                content = client.DownloadString(Schedule.Endpoint);
+
+                // close connection
+                client.Dispose();
+            }
+            catch (WebException ex)
+            {
+                if (ex.Response is HttpWebResponse)
+                    result = ((HttpWebResponse)ex.Response).StatusCode;
+            }
+
+            // log information to database
+            this.LogInformation(result, content);
+        }
+
+        private void LogInformation(HttpStatusCode result, string content)
+        {
+            // connect to the database
+            DatabaseDataContext db = new DatabaseDataContext();
+
+            // create new information
+            Information log = new Information();
+
+            // set information properties
+            log.ID = Guid.NewGuid();
+            log.ScheduleID = Schedule.ID;
+            log.Result = (int)result;
+            if (log.Result != 200)
+                log.Message = content;
+            log.CreatedDate = DateTime.UtcNow;
+
+            // insert information to database
+            db.Informations.InsertOnSubmit(log);
+            db.SubmitChanges();
+
+            // close connection
+            db.Dispose();
         }
     }
 }
