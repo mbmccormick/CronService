@@ -8,6 +8,8 @@ using Microsoft.WindowsAzure;
 using Microsoft.WindowsAzure.Diagnostics;
 using Microsoft.WindowsAzure.ServiceRuntime;
 using Microsoft.WindowsAzure.StorageClient;
+using NCrontab;
+using BackgroundWorker.Common;
 
 namespace BackgroundWorker
 {
@@ -15,18 +17,32 @@ namespace BackgroundWorker
     {
         public override void Run()
         {
-            Trace.WriteLine("BackgroundWorker entry point called", "Information");
-
             while (true)
             {
-                Thread.Sleep(60000); // execute every one minute
+                DatabaseDataContext db = new DatabaseDataContext();
 
-                Trace.WriteLine("Working", "Information");
+                // fetch all scheduled jobs that are overdue and enabled
+                foreach (Schedule s in db.Schedules.Where(z => z.NextOccurrence <= DateTime.UtcNow &&
+                                                               z.IsEnabled == true))
+                {
+                    // execute job
+                    Job job = new Job(s.Endpoint);
 
-                WebClient client = new WebClient();
-                client.DownloadData("http://metermaid.azurewebsites.net/execute.aspx");
+                    Thread jobThread = new Thread(new ThreadStart(job.Execute));
+                    jobThread.Start();
+                    
+                    // schedule next occurrence
+                    CrontabSchedule schedule = CrontabSchedule.Parse(s.Occurrence);
+                    DateTime nextOccurrence = schedule.GetNextOccurrence(s.NextOccurrence); // calculate new next occurrence
 
-                client.Dispose();
+                    s.NextOccurrence = nextOccurrence;
+
+                    db.SubmitChanges();                    
+                }
+
+                db.Dispose();
+
+                Thread.Sleep(60000); // sleep for one minute
             }
         }
 
@@ -35,6 +51,24 @@ namespace BackgroundWorker
             ServicePointManager.DefaultConnectionLimit = 12;
 
             return base.OnStart();
+        }
+    }
+
+    public class Job
+    {
+        public string Endpoint;
+
+        public Job(string endpoint)
+        {
+            Endpoint = endpoint;
+        }
+
+        public void Execute()
+        {
+            WebClient client = new WebClient();
+            client.DownloadData(Endpoint);
+
+            client.Dispose();
         }
     }
 }
