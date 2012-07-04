@@ -30,19 +30,22 @@ namespace BackgroundWorker
 
                     Thread jobThread = new Thread(new ThreadStart(job.Execute));
                     jobThread.Start();
-                    
+
                     // schedule next occurrence
                     CrontabSchedule schedule = CrontabSchedule.Parse(s.Occurrence);
-                    DateTime nextOccurrence = schedule.GetNextOccurrence(s.NextOccurrence); // calculate new next occurrence
+                    DateTime nextOccurrence = schedule.GetNextOccurrence(DateTime.UtcNow); // calculate new next occurrence
 
                     s.NextOccurrence = nextOccurrence;
 
-                    db.SubmitChanges();                    
+                    db.SubmitChanges();
                 }
 
                 db.Dispose();
 
-                Thread.Sleep(60000); // sleep for one minute
+                if (Debugger.IsAttached == true)
+                    Thread.Sleep(10000); // sleep for ten seconds
+                else
+                    Thread.Sleep(60000); // sleep for one minute
             }
         }
 
